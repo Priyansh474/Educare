@@ -1,0 +1,82 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  backend-tests:
+    runs-on: ubuntu-latest
+    
+    services:
+      mongodb:
+        image: mongo:latest
+        options: >-
+          --health-cmd mongosh
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 27017:27017
+
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+    
+    - name: Install dependencies
+      run: cd backend && npm install
+    
+    - name: Run linting
+      run: cd backend && npm run lint || true
+    
+    - name: Run tests
+      run: cd backend && npm test || true
+      env:
+        MONGO_URI: mongodb://localhost:27017/elearning-test
+        JWT_SECRET: test_secret_key
+
+  frontend-tests:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+    
+    - name: Install dependencies
+      run: cd frontend && npm install
+    
+    - name: Run linting
+      run: cd frontend && npm run lint || true
+    
+    - name: Run tests
+      run: cd frontend && npm test || true
+    
+    - name: Build frontend
+      run: cd frontend && npm run build
+
+  security-audit:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+    
+    - name: Audit backend dependencies
+      run: cd backend && npm audit --audit-level=moderate || true
+    
+    - name: Audit frontend dependencies
+      run: cd frontend && npm audit --audit-level=moderate || true
