@@ -1,16 +1,25 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const { validateEnv, getEnvConfig } = require('./config/env');
 const connectDB = require('./config/db');
 
-// Connect to database
-connectDB();
+// Validate environment variables before starting
+validateEnv();
+
+// Get environment configuration
+const envConfig = getEnvConfig();
 
 // Create Express app
 const app = express();
 
 // Middleware
-app.use(cors());
+app.use(
+  cors({
+    origin: envConfig.frontendUrl,
+    credentials: true,
+  })
+);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -26,9 +35,63 @@ app.get('/health', (req, res) => {
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-  console.error(err.stack);
+  console.error('Error:', err.stack);
+  
+  // Mongoose validation error
+  if (err.name === 'ValidationError') {
+    const errors = Object.values(err.errors).map((e) => ({
+      field: e.path,
+      message: e.message,
+    }));
+    return res.status(400).json({
+      success: false,
+      message: 'Validation failed',
+      errors,
+      statusCode: 400,
+    });
+  }
+
+  // Mongoose duplicate key error
+  if (err.code === 11000) {
+    const field = Object.keys(err.keyPattern)[0];
+    return res.status(400).json({
+      success: false,
+      message: `${field} already exists`,
+      statusCode: 400,
+    });
+  }
+
+  // Mongoose cast error (invalid ObjectId)
+  if (err.name === 'CastError') {
+    return res.status(400).json({
+      success: false,
+      message: 'Invalid ID format',
+      statusCode: 400,
+    });
+  }
+
+  // JWT errors
+  if (err.name === 'JsonWebTokenError') {
+    return res.status(401).json({
+      success: false,
+      message: 'Invalid token',
+      statusCode: 401,
+    });
+  }
+
+  if (err.name === 'TokenExpiredError') {
+    return res.status(401).json({
+      success: false,
+      message: 'Token expired',
+      statusCode: 401,
+    });
+  }
+
+  // Default error
   res.status(err.status || 500).json({
+    success: false,
     message: err.message || 'Internal Server Error',
+    statusCode: err.status || 500,
   });
 });
 
@@ -37,10 +100,22 @@ app.use((req, res) => {
   res.status(404).json({ message: 'Route not found' });
 });
 
-// Start server
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+// Connect to database and start server
+(async () => {
+  try {
+    await connectDB();
+    
+    // Start server only after database connection is established
+    const PORT = envConfig.port;
+    app.listen(PORT, () => {
+      console.log(`🚀 Server running on port ${PORT}`);
+      console.log(`📝 Environment: ${envConfig.nodeEnv}`);
+      console.log(`🌐 Frontend URL: ${envConfig.frontendUrl}`);
+    });
+  } catch (error) {
+    console.error('Failed to start server:', error);
+    process.exit(1);
+  }
+})();
 
 module.exports = app;

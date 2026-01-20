@@ -23,8 +23,13 @@ const UserSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: ['user', 'admin'],
-    default: 'user',
+    enum: ['student', 'instructor', 'admin'],
+    default: 'student',
+  },
+  refreshToken: {
+    type: String,
+    default: null,
+    select: false, // Don't include in queries by default
   },
   createdAt: {
     type: Date,
@@ -33,10 +38,13 @@ const UserSchema = new mongoose.Schema({
 });
 
 // Hash password before saving
-UserSchema.pre('save', async function (next) {
+UserSchema.pre('save', async function () {
+  // Skip if password is not modified
   if (!this.isModified('passwordHash')) {
-    next();
+    return;
   }
+  
+  // Hash the password
   const salt = await bcrypt.genSalt(10);
   this.passwordHash = await bcrypt.hash(this.passwordHash, salt);
 });

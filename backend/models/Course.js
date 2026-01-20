@@ -69,9 +69,10 @@ const CourseSchema = new mongoose.Schema({
 });
 
 // Generate slug from title
-CourseSchema.pre('save', function (next) {
-  this.slug = this.title.toLowerCase().replace(/\s+/g, '-');
-  next();
+CourseSchema.pre('save', async function () {
+  if (this.isModified('title') || this.isNew) {
+    this.slug = this.title.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+  }
 });
 
 module.exports = mongoose.model('Course', CourseSchema);
