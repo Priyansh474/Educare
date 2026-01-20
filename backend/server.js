@@ -20,7 +20,7 @@ app.use(
       // Allow requests with no origin (mobile apps, Postman, etc.)
       if (!origin) return callback(null, true);
       
-      // List of allowed origins
+      // List of allowed origins (including Vercel preview deployments)
       const allowedOrigins = [
         envConfig.frontendUrl,
         'http://localhost:3000',
@@ -28,7 +28,10 @@ app.use(
         'https://educare-nine-omega.vercel.app',
       ];
       
-      if (allowedOrigins.includes(origin)) {
+      // Allow any Vercel preview deployment (*.vercel.app)
+      const isVercelPreview = origin.includes('.vercel.app');
+      
+      if (allowedOrigins.includes(origin) || isVercelPreview) {
         callback(null, true);
       } else {
         callback(new Error('Not allowed by CORS'));
